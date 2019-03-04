@@ -19,6 +19,8 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.SetOptions;
 
 import java.lang.reflect.Field;
@@ -36,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     EditText editTextDescription;
     private TextView textViewData;
     FirebaseFirestore db = FirebaseFirestore.getInstance();
-    private DocumentReference noteRef = db.collection("NOTEBOOK").document("My first note");
+    //private DocumentReference noteRef = db.collection("NOTEBOOK").document("My first note");   WAS USING IT EARLIER FOR SINGLE DOCUMENT
     CollectionReference notebookRef  = db.collection("NOTEBOOK");
    // private ListenerRegistration noteListener;
 
@@ -54,28 +56,28 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected  void onStart(){
         super.onStart();
-       noteRef.addSnapshotListener(this,new EventListener<DocumentSnapshot>() {
+        notebookRef.addSnapshotListener(this, new EventListener<QuerySnapshot>() {
             @Override
-            public void onEvent(@Nullable DocumentSnapshot documentSnapshot, @Nullable FirebaseFirestoreException e) {
-                if(e != null){
-                    Toast.makeText(MainActivity.this, "ERROR WHILE LOADING", Toast.LENGTH_SHORT).show();
-                    Log.i(TAG,e.toString());
-                    return;
-                }
-                if(documentSnapshot.exists()){
-                    Note note = documentSnapshot.toObject(Note.class);
-                    String title = note.getTitle();
+            public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
+                    if(e != null){
+                        return;
+                    }
+
+                String data = "";
+                for(QueryDocumentSnapshot documentSnapshots : queryDocumentSnapshots){
+                    Note note = documentSnapshots.toObject(Note.class);         //ONE PARTICULAR DOCUMENT QUERIED
+                    note.setDocumentId(documentSnapshots.getId());
+                    String documentID = note.getDocumentId();
+                    String title =  note.getTitle();
                     String description = note.getDescription();
-
-                    // Map<String,Object> map  = documentSnapshot.getData();         //another way to do it
-
-                    textViewData.setText("Title is "+ title+ "\nDescr   iption is "+description);
-                }else{
-                    //ONCE DELETED EVERYTHING TEXT WILL BECOME BLANK SO
-                    textViewData.setText(""); //SET TEXT TO BLACK
+                    data += "\n\nID:"+ documentID + "Title:"+ title + "\nDescription:" + description;
                 }
+                textViewData.setText(data);
+
             }
         });
+
+
     }
       ///////Onstart is called when app starts
 
@@ -96,86 +98,33 @@ public class MainActivity extends AppCompatActivity {
         String title = editTextTitle.getText().toString();
         String description = editTextDescription.getText().toString();
         Note note = new Note(title,description);
-
-        /////////////////////UPLOADING TASK
-        noteRef.set(note)           //MAIN CODE
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void aVoid) {
-                        Toast.makeText(MainActivity.this, "ULOADED SUCCESSFULLY", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .addOnFailureListener(  new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(MainActivity.this, "DIDN'T UPLAOD TO DATABASE", Toast.LENGTH_SHORT).show();
-                        Log.i(TAG,e.toString());
-
-                    }
-                });
-        /////////////////UPLOADING DONE
+        notebookRef.add(note); //ADDED USING RANDOM ID AS NAME OF DOUCMENT , NAME OF COLLECTION IS "NOTEBOOK"
     }
 
 
     //////FUNCTION FOR LOAD BUTTON
-    public  void loadNote(View v){
-        noteRef.get()
-                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+    public  void loadNotes(View v) {
+        notebookRef.get()
+                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
                     @Override
-                    public void onSuccess(DocumentSnapshot documentSnapshot) {
-                        if(documentSnapshot.exists()){
-                            Note note = documentSnapshot.toObject(Note.class);
-                            String title = note.getTitle();
+                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+
+                        String data = "";
+                        for(QueryDocumentSnapshot documentSnapshots : queryDocumentSnapshots){
+                            Note note = documentSnapshots.toObject(Note.class);         //ONE PARTICULAR DOCUMENT QUERIED
+                           note.setDocumentId(documentSnapshots.getId());
+                           String documentID = note.getDocumentId();
+                            String title =  note.getTitle();
                             String description = note.getDescription();
-
-                           // Map<String,Object> map  = documentSnapshot.getData();         //another way to do it
-
-                            textViewData.setText("Title is "+ title+ "\nDescription is "+description);
-                        } else{
-                            Toast.makeText(MainActivity.this, "Document does not exist", Toast.LENGTH_SHORT).show();
+                            data += "\n\nID:"+ documentID + "Title:"+ title + "\nDescription:" + description;
                         }
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(MainActivity.this, "SOME ERROR CANNOT DISPLAY", Toast.LENGTH_SHORT).show();
-                        Log.i(TAG,e.toString());
+                        textViewData.setText(data);
+
                     }
                 });
     }
     //////FUNCTION FOR LOAD BUTTON
 
-
-
-    /////FUNCTION FOR UPDATE DESCRIPTION BUTTON
-    public void updateDescription(View v) {
-        String description = editTextDescription.getText().toString();
-       Map<String,Object> note = new HashMap<>();
-        note.put(KEY_DESCRIPTION,description);
-        noteRef.set(note, SetOptions.merge()); //NOTEREF IS A FIREBASE REFERENCE  SET TO notebook/my first note
-        //EVEN IF WE DETELE DATE ON FIREBASE MANUALLY ,I WON'T MATTER AS THIS CAN MANAGE EVERYTHING
-        //EVEN THIS CAN BE USED TO DO THE SAME WORK AS noteRef.set(note, SetOptions.merge());
-       // noteRef.update(KEY_DESCRIPTION,description);
-
-    }
-
-
-    public void deleteDescription(View v) {
-//        Map<String,Object> note = new HashMap<>();
-//        note.put(KEY_DESCRIPTION, FieldValue.delete());
-//        noteRef.update(note);
-
-        // or simply
-        noteRef.update(KEY_DESCRIPTION, FieldValue.delete());
-    }
-
-    public void deleteNote(View v) {
-
-        noteRef.delete();
-        ////THE  FOLDERS STILL EXIST BUT THE INSIDE OF NOTEBOOK/My first document is gone
-        /////THE FOLDER ALSO GETS DELETED IF THERE ARE NO DOCUMENTS IN IT
-    }
 
 
 }
